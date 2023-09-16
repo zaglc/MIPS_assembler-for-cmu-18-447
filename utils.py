@@ -60,7 +60,7 @@ ops_pos_pair = {
     "lhu": ["100101", [[20, 16], [15, 0], [25, 21]]], 
     "lw": ["100011", [[20, 16], [15, 0], [25, 21]]], 
     "sb": ["101000", [[20, 16], [15, 0], [25, 21]]], 
-    "lh": ["101001", [[20, 16], [15, 0], [25, 21]]], 
+    "sh": ["101001", [[20, 16], [15, 0], [25, 21]]], 
     "sw": ["101011", [[20, 16], [15, 0], [25, 21]]],
     "mfhi": ["000000", [[15, 11]], ["010000", [5, 0]]],
     "mflo": ["000000", [[15, 11]], ["010010", [5, 0]]],
@@ -148,7 +148,36 @@ def imm2code(imm: str, bit: int):
     if ret > (1 << bit) - 1 or ret < -(1 << bit):
         raise ValueError(f"{ret} out of range {-(1 << bit)}-{(1 << bit) - 1}")
     
-    ret = bin(ret)[2:]
-    ret = ret[0]*(bit-len(ret)) + ret
+    if ret == -(1 << bit):
+        ret = "1" + "0" * (bit - 1)
+    elif ret < 0:
+        ret = bin(ret)[3:]
+        ret = "0"*(bit-len(ret)) + ret
+        flag = 0
+        res = ""
+        for i in range(len(ret)-1, -1, -1):
+            if ret[i] == "0" and flag:
+                res = "1" + res
+            elif ret[i] == "1" and flag:
+                res = "0" + res
+            elif ret[i] == "1" and not flag:
+                flag = 1
+                res = "1" + res
+            else:
+                res = "0" + res
+        ret = res
+    else:
+        ret = bin(ret)[2:]
+        ret = "0"*(bit-len(ret)) + ret
 
+    return ret
+
+# convert label addr to binary
+def label2code(addr: int, label: int, bit: int):
+    msk = int("0b"+"1"*(LENGTH-bit)+"0"*(bit), 2)
+    if (msk & addr == msk & label):
+        ret = str(bin((label % msk) // 4)[2:])
+    else:
+        raise ValueError(f"unable to jump from {hex(addr)} to {hex(label)}")
+    ret = "0"*(bit-len(ret)) + ret
     return ret

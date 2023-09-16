@@ -66,7 +66,7 @@ l_12:
         bgezal $4, l_11
         
 l_13:    
-        addiu $5, $5, 0xbeb0063d
+        addiu $5, $5, 0x063d
         syscall
         
         

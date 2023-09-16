@@ -20,6 +20,12 @@ main:
         sub     $15, $zero, $10
         lui     $17, 100
         addiu   $v0, $zero, 0xa
+        
+        # mult test
+        addiu   $18, $zero, -3
+        addiu   $19, $zero, -6
+        mult    $18, $19
+        multu   $18, $19
         syscall
         
         
