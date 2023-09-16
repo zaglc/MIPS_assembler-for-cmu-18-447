@@ -1,11 +1,20 @@
-import re, os
+import os
+import re
 
-from utils import sgt_type, ops_pos_pair, LENGTH
-from utils import process_line, bin2hex
-from utils import ops2code, imm2code
+from utils import (
+    LENGTH,
+    bin2hex,
+    imm2code,
+    ops2code,
+    ops_pos_pair,
+    process_line,
+    sgt_type,
+    label2code,
+)
+
 
 class MIPS:
-    def __init__(self, assembly_file: str) -> None:
+    def __init__(self, assembly_file = None) -> None:
         # start addr of segmemtation, like `.text`
         self.addr_start = None
 
@@ -18,7 +27,14 @@ class MIPS:
         self.inst_store = dict()
 
         # init from given file
-        self._init_from_file(assembly_file)
+        if assembly_file is not None:
+            self._init_from_file(assembly_file)
+
+    def reset(self):
+        self.label_dict = dict()
+        self.op_dict = dict()
+        self.operands_dict = dict()
+        self.inst_store = dict()
 
 
     def _init_from_file(self, filename: str):
@@ -28,7 +44,7 @@ class MIPS:
         # read file
         with open(filename, "r") as f:
             # base addr
-            while(True):
+            while True:
                 head = f.readline().lower()
                 head = re.sub("\s", "", head)
                 if not head.startswith("#"):
@@ -48,7 +64,7 @@ class MIPS:
 
                 if ops[0].endswith(":"):
                     label = ops.pop(0)
-                    self.label_dict.update({counter: label[:-1]})
+                    self.label_dict.update({label[:-1]: counter})
                 if len(ops) == 0: continue
 
                 # remove notes
@@ -61,7 +77,7 @@ class MIPS:
                     raise ValueError(f"instruction in line {idx}, {opcode} is not defined, support {list(ops_pos_pair.keys())}")
                 
                 self.operands_dict.update({counter: ops})
-                counter += (LENGTH // 4)
+                counter += (LENGTH // 8)
 
 
     def _single_inst_gen(self, addr: int):
@@ -72,10 +88,16 @@ class MIPS:
         ret = info[0] + "0" * (LENGTH - len(info[0]))
         assert len(info[1]) == len(self.operands_dict[addr]), f"expect {len(info[1])} args but get {self.operands_dict[addr]}"
 
-        # print(ret)
         for rng, op in zip(info[1], self.operands_dict[addr]):
             if op.startswith("$"):
                 op = ops2code(op[1:])
+
+            elif op in list(self.label_dict.keys()):
+                if self.op_dict[addr] in {"j", "jal"}:
+                    op = label2code(addr, self.label_dict[op], rng[0] - rng[1] + 1)
+                else:
+                    op = imm2code(str((self.label_dict[op] - addr)//4), rng[0] - rng[1] + 1)
+
             else:
                 op = imm2code(op, rng[0] - rng[1] + 1)
             ret = ret[:LENGTH-rng[0]-1] + op + ret[LENGTH-rng[1]:]
@@ -96,19 +118,27 @@ class MIPS:
 
 
     def dump_file(self, filename: str, mode = 'b'):
-        assert mode in {'b', 'h'}
+        assert mode in {'b', 'x'}
 
         print(f"{len(self.inst_store)} instructions dump to {filename}")
         with open(filename, "w") as f:
             for _, inst in self.inst_store.items():
-                if mode == 'h':
+                if mode == 'x':
                     inst = bin2hex(inst)
                 f.write(inst + "\n")
 
 
 
 if __name__ == "__main__":
-    file = "memtest0"
-    mips = MIPS(f"inputs/{file}.s")
-    mips.inst_generate()
-    mips.dump_file(f"outputs/{file}.txt")
+    mips = MIPS()
+    input_dir = "inputs/"
+    mode = "x"
+    for file in os.listdir("inputs/"):
+        if not file.endswith(".s"): continue
+        mips._init_from_file(input_dir + file)
+        mips.inst_generate()
+        outf = file.split(".")[0]
+        mips.dump_file(f"outputs/{mode}/{outf}.{mode}", mode)
+        mips.reset()
+
+    
